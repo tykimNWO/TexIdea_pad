@@ -2,12 +2,12 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>AI 전략 기획 Thinking Note</title>
+    <title>AI 전략 기획 Thinking Note (v2)</title>
     <style>
         :root {
             --bg-color: #f8f9fa;
             --sidebar-color: #ffffff;
-            --accent-color: #008485; /* 하나은행 브랜드 컬러 느낌의 딥그린 */
+            --accent-color: #008485;
             --text-color: #333;
             --border-color: #ddd;
         }
@@ -19,15 +19,26 @@
             height: 100vh;
             color: var(--text-color);
             background-color: var(--bg-color);
+            overflow: hidden;
         }
 
-        /* 사이드바: 노트 목록 */
+        /* 사이드바 */
         #sidebar {
-            width: 260px;
+            width: 300px;
             background: var(--sidebar-color);
             border-right: 1px solid var(--border-color);
             display: flex;
             flex-direction: column;
+            transition: width 0.3s ease;
+            position: relative;
+            /* 사이드바 축소 시 내부 요소가 삐져나오지 않도록 숨김 처리 */
+            overflow: hidden;
+            white-space: nowrap;
+        }
+
+        #sidebar.collapsed {
+            width: 0;
+            border-right: none;
         }
 
         .sidebar-header {
@@ -38,6 +49,20 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            cursor: help; /* 클릭 가능함을 암시 */
+        }
+
+        /* 검색 영역 */
+        .search-container {
+            padding: 10px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        #search-input {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
         }
 
         #note-list {
@@ -62,14 +87,44 @@
             font-weight: 600;
         }
 
+        .note-date {
+            font-size: 0.75rem;
+            color: #888;
+            margin-top: 5px;
+            font-weight: normal;
+        }
+
         /* 메인 에디터 영역 */
         #main-content {
             flex: 1;
             display: flex;
             flex-direction: column;
-            padding: 40px;
+            position: relative;
+            min-width: 0;
+        }
+
+        #toggle-sidebar {
+            position: absolute;
+            left: 10px;
+            top: 20px;
+            z-index: 10;
+            background: white;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            cursor: pointer;
+            padding: 5px 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+
+        .editor-container {
+            padding: 40px 60px 40px 80px;
             max-width: 900px;
             margin: 0 auto;
+            width: 100%;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            flex: 1;
         }
 
         #note-title {
@@ -77,9 +132,36 @@
             border: none;
             background: transparent;
             outline: none;
-            margin-bottom: 20px;
+            margin-bottom: 5px;
             font-weight: bold;
             width: 100%;
+        }
+
+        .meta-info {
+            font-size: 0.85rem;
+            color: #aaa;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .format-toolbar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            padding: 10px;
+            background: white;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            align-items: center;
+        }
+
+        .format-toolbar select, .format-toolbar input[type="color"], .format-toolbar button {
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 5px;
+            cursor: pointer;
+            background: white;
         }
 
         #editor {
@@ -88,12 +170,15 @@
             line-height: 1.8;
             border: none;
             outline: none;
-            resize: none;
-            background: transparent;
-            white-space: pre-wrap;
+            overflow-y: auto;
+            min-height: 300px;
         }
 
-        /* 하단 툴바 */
+        #editor:empty:before {
+            content: attr(data-placeholder);
+            color: #aaa;
+        }
+
         .toolbar {
             position: fixed;
             bottom: 20px;
@@ -102,7 +187,7 @@
             gap: 10px;
         }
 
-        button {
+        .action-btn {
             padding: 10px 18px;
             border-radius: 8px;
             border: 1px solid var(--border-color);
@@ -112,13 +197,12 @@
             transition: all 0.2s;
         }
 
-        button:hover { background: #f0f0f0; }
+        .action-btn:hover { background: #f0f0f0; }
         .btn-primary {
             background: var(--accent-color);
             color: white;
             border: none;
         }
-        .btn-primary:hover { background: #006b6b; }
 
         .status-msg {
             font-size: 0.8rem;
@@ -126,43 +210,127 @@
             margin-top: 10px;
             text-align: right;
         }
+
+        /* Toast 스타일 (ChatReq v2.0에서 이식) */
+        #creatorToast { 
+            visibility: hidden; 
+            min-width: 280px; 
+            margin-left: -140px; 
+            background-color: #333; 
+            color: #fff; 
+            text-align: center; 
+            border-radius: 8px; 
+            padding: 16px; 
+            position: fixed; 
+            z-index: 100; 
+            left: 50%; 
+            bottom: 50px; 
+            opacity: 0; 
+            transition: opacity 0.5s, visibility 0.5s; 
+            font-size: 14px;
+            line-height: 1.5;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        #creatorToast.show { visibility: visible; opacity: 1; }
     </style>
 </head>
 <body>
 
 <div id="sidebar">
-    <div class="sidebar-header">
+    <div class="sidebar-header" id="sidebarHeader" title="클릭하여 정보를 확인합니다.">
         📂 Thinking Notes
-        <button onclick="createNewNote()" style="padding: 2px 8px;">+</button>
+        <button onclick="createNewNote()" style="padding: 2px 8px; border: 1px solid #ddd; background: white; cursor: pointer;">+</button>
+    </div>
+    <div class="search-container">
+        <input type="text" id="search-input" placeholder="🔍 검색어 입력..." oninput="handleSearch()">
     </div>
     <ul id="note-list"></ul>
 </div>
 
 <div id="main-content">
-    <input type="text" id="note-title" placeholder="생각의 제목을 적어주세요..." oninput="autoSave()">
-    <textarea id="editor" placeholder="여기에 자유롭게 아이디어를 끄적여보세요. (실시간 저장 중)" oninput="autoSave()"></textarea>
-    <div class="status-msg" id="save-status">모든 변경사항이 저장되었습니다.</div>
+    <button id="toggle-sidebar" onclick="toggleSidebar()">☰</button>
+    
+    <div class="editor-container">
+        <input type="text" id="note-title" placeholder="생각의 제목을 적어주세요..." oninput="autoSave()">
+        <div class="meta-info" id="meta-info">작성일: - | 최근 수정일: -</div>
+        
+        <div class="format-toolbar">
+            <select onchange="formatText('fontSize', this.value); this.selectedIndex=0;">
+                <option value="">크기</option>
+                <option value="1">매우 작게</option>
+                <option value="3">보통</option>
+                <option value="5">크게</option>
+                <option value="7">매우 크게</option>
+            </select>
+            <input type="color" onchange="formatText('foreColor', this.value)" title="글자 색상">
+            <button onclick="formatText('bold')" title="Ctrl+B / Cmd+B"><b>B</b></button>
+            <button onclick="formatText('underline')" title="Ctrl+U / Cmd+U"><u>U</u></button>
+            <button onclick="formatText('insertUnorderedList')">• 리스트</button>
+        </div>
+
+        <div id="editor" contenteditable="true" data-placeholder="여기에 자유롭게 아이디어를 끄적여보세요." oninput="autoSave()"></div>
+        <div class="status-msg" id="save-status">모든 변경사항이 저장되었습니다.</div>
+    </div>
 </div>
 
 <div class="toolbar">
-    <button onclick="copyToClipboard()">📋 텍스트 복사</button>
-    <button onclick="downloadNote()">💾 파일로 저장</button>
-    <button class="btn-primary" onclick="deleteNote()">🗑️ 삭제</button>
+    <button class="action-btn" onclick="copyToClipboard()">📋 텍스트 복사</button>
+    <button class="action-btn" onclick="downloadNote()">💾 HTML로 저장</button>
+    <button class="action-btn btn-primary" onclick="deleteNote()">🗑️ 삭제</button>
 </div>
 
 <script>
-    let notes = JSON.parse(localStorage.getItem('thinking_notes')) || [
-        { id: Date.now(), title: '첫 번째 생각', content: '여기에 내용을 작성하세요.' }
-    ];
-    let currentNoteId = notes[0]?.id;
+    let notes = JSON.parse(localStorage.getItem('thinking_notes')) || [];
+    if(notes.length === 0) {
+        notes = [{ id: Date.now(), title: '첫 번째 생각', content: '', createdAt: Date.now(), updatedAt: Date.now() }];
+    } else {
+        notes = notes.map(n => ({
+            ...n,
+            createdAt: n.createdAt || n.id,
+            updatedAt: n.updatedAt || n.id,
+        }));
+    }
 
-    function renderNoteList() {
+    let currentNoteId = notes[0]?.id;
+    let invertedIndex = {};
+
+    function formatDate(ms) {
+        const d = new Date(ms);
+        return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    }
+
+    function buildIndex() {
+        invertedIndex = {};
+        notes.forEach(note => {
+            const tempDiv = document.createElement("div");
+            tempDiv.innerHTML = note.title + " " + note.content;
+            const plainText = tempDiv.textContent || tempDiv.innerText || "";
+            const tokens = plainText.toLowerCase().split(/\s+/).filter(t => t);
+            tokens.forEach(token => {
+                if (!invertedIndex[token]) invertedIndex[token] = new Set();
+                invertedIndex[token].add(note.id);
+            });
+        });
+    }
+
+    function renderNoteList(searchQuery = '') {
         const listEl = document.getElementById('note-list');
         listEl.innerHTML = '';
-        notes.forEach(note => {
+        let filteredNotes = notes;
+        if (searchQuery.trim() !== '') {
+            const query = searchQuery.toLowerCase().trim();
+            filteredNotes = notes.filter(note => {
+                const tempDiv = document.createElement("div");
+                tempDiv.innerHTML = note.title + " " + note.content;
+                const fullText = (tempDiv.textContent || "").toLowerCase();
+                return fullText.includes(query) || (invertedIndex[query] && invertedIndex[query].has(note.id));
+            });
+        }
+        filteredNotes.sort((a, b) => b.updatedAt - a.updatedAt);
+        filteredNotes.forEach(note => {
             const li = document.createElement('li');
             li.className = `note-item ${note.id === currentNoteId ? 'active' : ''}`;
-            li.innerText = note.title || '제목 없음';
+            li.innerHTML = `<div style="overflow: hidden; text-overflow: ellipsis;">${note.title || '제목 없음'}</div><div class="note-date">수정: ${formatDate(note.updatedAt)}</div>`;
             li.onclick = () => selectNote(note.id);
             listEl.appendChild(li);
         });
@@ -172,60 +340,100 @@
         currentNoteId = id;
         const note = notes.find(n => n.id === id);
         document.getElementById('note-title').value = note.title;
-        document.getElementById('editor').value = note.content;
-        renderNoteList();
+        document.getElementById('editor').innerHTML = note.content;
+        document.getElementById('meta-info').innerText = `작성일: ${formatDate(note.createdAt)} | 최근 수정일: ${formatDate(note.updatedAt)}`;
+        if(document.getElementById('search-input').value === '') renderNoteList();
     }
 
     function createNewNote() {
-        const newNote = { id: Date.now(), title: '', content: '' };
+        const now = Date.now();
+        const newNote = { id: now, title: '', content: '', createdAt: now, updatedAt: now };
         notes.unshift(newNote);
+        document.getElementById('search-input').value = '';
         selectNote(newNote.id);
     }
 
     function autoSave() {
         const title = document.getElementById('note-title').value;
-        const content = document.getElementById('editor').value;
+        const content = document.getElementById('editor').innerHTML;
         const status = document.getElementById('save-status');
-
         const noteIndex = notes.findIndex(n => n.id === currentNoteId);
         if (noteIndex > -1) {
             notes[noteIndex].title = title;
             notes[noteIndex].content = content;
+            notes[noteIndex].updatedAt = Date.now();
             localStorage.setItem('thinking_notes', JSON.stringify(notes));
-            
+            buildIndex();
             status.innerText = "저장 중...";
-            setTimeout(() => { status.innerText = "모든 변경사항이 저장되었습니다."; }, 500);
+            setTimeout(() => { 
+                status.innerText = "모든 변경사항이 저장되었습니다."; 
+                document.getElementById('meta-info').innerText = `작성일: ${formatDate(notes[noteIndex].createdAt)} | 최근 수정일: ${formatDate(notes[noteIndex].updatedAt)}`;
+            }, 500);
+            if(document.getElementById('search-input').value === '') renderNoteList();
         }
-        renderNoteList();
     }
 
-    function copyToClipboard() {
-        const content = document.getElementById('editor').value;
-        navigator.clipboard.writeText(content).then(() => alert('클립보드에 복사되었습니다!'));
+    function formatText(command, value = null) {
+        document.execCommand(command, false, value);
+        document.getElementById('editor').focus();
+        autoSave();
     }
 
+    document.getElementById('editor').addEventListener('keydown', function(e) {
+        if (e.ctrlKey || e.metaKey) {
+            if (e.key.toLowerCase() === 'b') { e.preventDefault(); formatText('bold'); }
+            else if (e.key.toLowerCase() === 'u') { e.preventDefault(); formatText('underline'); }
+        }
+        if (e.key === 'Tab') {
+            e.preventDefault();
+            if (e.shiftKey) document.execCommand('outdent', false, null);
+            else document.execCommand('indent', false, null);
+            autoSave();
+        }
+    });
+
+    function handleSearch() { renderNoteList(document.getElementById('search-input').value); }
+    function toggleSidebar() { document.getElementById('sidebar').classList.toggle('collapsed'); }
+    function copyToClipboard() { navigator.clipboard.writeText(document.getElementById('editor').innerText).then(() => alert('텍스트가 복사되었습니다!')); }
+    
     function downloadNote() {
         const title = document.getElementById('note-title').value || 'untitled';
-        const content = document.getElementById('editor').value;
-        const blob = new Blob([content], { type: 'text/plain' });
+        const content = document.getElementById('editor').innerHTML;
+        const html = `<html><head><meta charset="utf-8"></head><body><h1>${title}</h1>${content}</body></html>`;
         const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `${title}.txt`;
+        a.href = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+        a.download = `${title}.html`;
         a.click();
     }
 
     function deleteNote() {
-        if(confirm('이 노트를 삭제하시겠습니까?')) {
+        if(confirm('삭제하시겠습니까?')) {
             notes = notes.filter(n => n.id !== currentNoteId);
             localStorage.setItem('thinking_notes', JSON.stringify(notes));
+            buildIndex();
             if(notes.length > 0) selectNote(notes[0].id);
             else createNewNote();
         }
     }
 
-    // 초기 실행
+    // [핵심] 제작자 Toast 로직 이식
+    const toast = document.createElement("div");
+    toast.id = "creatorToast";
+    // 여기에 들어갈 문구는 직접 수정해서 사용하세요!
+    toast.innerHTML = "<b>Thinking Note v2</b><br>Created by Tex 😁<br><br>🎵 dress, Kid Milli - Citrus";
+    document.body.appendChild(toast);
+
+    document.getElementById('sidebarHeader').addEventListener('click', function(e) {
+        // '+' 버튼 클릭 시에는 Toast가 안 뜨게 방어
+        if (e.target.tagName === 'BUTTON') return;
+        
+        toast.classList.add("show");
+        setTimeout(() => toast.classList.remove("show"), 2500);
+    });
+
     window.onload = () => {
-        if(notes.length > 0) selectNote(currentNoteId);
+        buildIndex();
+        if(notes.length > 0) { notes.sort((a, b) => b.updatedAt - a.updatedAt); selectNote(notes[0].id); }
         else createNewNote();
     };
 </script>
